@@ -64,6 +64,15 @@ describe Mystral::HoverProvider do
     md.should contain("Event")
   end
 
+  it "renders the synthesized reader for a `getter?` property's declaration name" do
+    # The reader is synthesized as `debug?`; hovering the declaration token
+    # `debug` must still resolve (it would otherwise find nothing — the bare
+    # name isn't a method and the ivar is reachable only via `@debug`).
+    src = "class C\n  getter? debug : Bool\nend"
+    md = hover_md(src, 1, 10).not_nil! # cursor on `debug`
+    md.should contain("def debug? : Bool")
+  end
+
   it "suppresses hover inside a comment" do
     hover_md("x = 1 # greet", 0, 9).should be_nil
   end

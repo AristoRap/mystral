@@ -66,6 +66,9 @@ module Mystral
         if md = local_var_hover(uri, line, name)
           return md
         end
+        if md = accessor_decl_hover(uri, line, col, name)
+          return md
+        end
       end
 
       matches = @context.resolver.matches_at(name, uri, receiver, line)
@@ -187,6 +190,20 @@ module Mystral
       type = receiver_resolver.infer_local_var_type(name, uri, line)
       return nil unless type
       @renderer.render_markup([HoverEntry.new(role: "local", name: name, type: type)])
+    end
+
+    # A `?`/`!` accessor (`getter? x`, `getter! x`) synthesizes its reader under
+    # the name `x?` / `x!`, so a plain-name lookup on the declaration token `x`
+    # finds nothing (the backing ivar is reachable only via `@x`). Resolve the
+    # token to its reader def — anchored at THIS exact declaration position so it
+    # can never match an unrelated `x?`/`x!` elsewhere in the file.
+    private def accessor_decl_hover(uri : String, line : Int32, col : Int32, name : String) : LSP::MarkupContent?
+      reader = @context.index.symbols_in(uri).find do |s|
+        s.kind == "def" && s.line == line && s.column == col &&
+          (s.name == "#{name}?" || s.name == "#{name}!")
+      end
+      return nil unless reader
+      @renderer.render_hover([reader])
     end
   end
 end
