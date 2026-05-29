@@ -9,6 +9,8 @@ require "./providers/definition_provider"
 require "./providers/hover_provider"
 require "./providers/completion_provider"
 require "./providers/signature_help_provider"
+require "./providers/formatting_provider"
+require "./providers/folding_range_provider"
 
 module Mystral
   # Routes one LSP message to the provider that owns it, and owns the
@@ -28,6 +30,8 @@ module Mystral
       @hover = HoverProvider.new(@context)
       @completion = CompletionProvider.new(@context)
       @signature_help = SignatureHelpProvider.new(@context)
+      @formatting = FormattingProvider.new(@context)
+      @folding_range = FoldingRangeProvider.new(@context)
     end
 
     # Returns true if the server should exit after handling this message.
@@ -69,6 +73,11 @@ module Mystral
         respond(id, @completion.completion(params))
       when "textDocument/signatureHelp"
         respond_or_null(id, @signature_help.signature_help(params))
+      when "textDocument/formatting"
+        respond_or_null(id, @formatting.formatting(params))
+      when "textDocument/foldingRange"
+        # Wired but NOT advertised — answered correctly if a client asks.
+        respond(id, @folding_range.folding_range(params))
       else
         respond_error(id, -32601, "Method not found: #{method}")
       end

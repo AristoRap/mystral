@@ -154,6 +154,17 @@ module Mystral
       end
     end
 
+    # One foldable region. The editor folds whole lines; we don't use the
+    # optional `kind` hint.
+    record FoldingRange, start_line : Int32, end_line : Int32 do
+      def to_json(json : JSON::Builder) : Nil
+        json.object do
+          json.field "startLine", start_line
+          json.field "endLine", end_line
+        end
+      end
+    end
+
     # One highlight of the cursor's identifier within the current document.
     # We emit kind=1 (Text) explicitly even though it's the spec default —
     # some clients drop highlights without it.
