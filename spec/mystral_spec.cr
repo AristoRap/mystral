@@ -1,9 +1,7 @@
 require "./spec_helper"
 
 describe Mystral do
-  # TODO: Write tests
-
-  it "works" do
-    false.should eq(true)
+  it "exposes a version string" do
+    Mystral::VERSION.should_not be_empty
   end
 end

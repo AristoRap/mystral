@@ -1,6 +1,11 @@
-# TODO: Write documentation for `Mystral`
+require "./mystral/lsp/types"
+require "./mystral/transport"
+
+# Mystral — a blazing-fast, parser-driven Crystal language server.
+#
+# This file is the library root: it pulls in the pieces in dependency order.
+# The executable entry point (the `mystral` binary) is wired in once the
+# server + CLI land.
 module Mystral
   VERSION = "0.1.0"
-
-  # TODO: Put your code here
 end
