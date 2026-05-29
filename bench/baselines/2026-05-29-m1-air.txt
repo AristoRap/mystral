@@ -1,0 +1,60 @@
+Baseline — base M1 MacBook Air (8-core 4P+4E, 8 GB RAM), macOS 26.5, Crystal 1.20.2
+Captured with `make bench` and `make footprint TARGET=<project>`.
+
+=====================================================================================
+make bench  (crystal run --release --no-debug bench/reindex_bench.cr)
+=====================================================================================
+Mystral benchmarks — 2026-05-29 22:38 UTC
+Crystal 1.20.2, build: release
+========================================================================
+
+[1] Index#reindex — single-file throughput
+  small  (34 LOC, ~12 syms)                     18313 ops/sec       54.61 µs/op
+  medium (640 LOC, ~220 syms)                    1963 ops/sec      509.55 µs/op
+  large  (6200 LOC, ~2100 syms)                   173 ops/sec     5785.64 µs/op
+
+[2] Cold workspace indexing — sequential, single fiber
+    10 medium files:   0.005s total       0.46 ms/file
+    50 medium files:   0.024s total       0.48 ms/file
+   200 medium files:   0.116s total       0.58 ms/file
+   500 medium files:   0.302s total       0.60 ms/file
+
+[3] Query path (index pre-loaded with 500 medium files)
+  Loaded: 110000 symbols across 500 files
+  each_symbol traversal                       2810832 ops/sec        0.36 µs/op
+  find_by_name (hit, 500 matches)                2448 ops/sec      408.44 µs/op
+  find_by_name (miss)                        70434936 ops/sec        0.01 µs/op
+
+=====================================================================================
+make footprint TARGET=<project>  (full workspace + CRYSTAL_PATH scan)
+=====================================================================================
+
+######## mystral ########
+Footprint profile — 2026-05-29 22:38 UTC
+Target: /Users/aristotelisrapai/code/AristoRap/mystral
+Crystal 1.20.2, build: release
+==============================================================================
+  baseline (process boot)                        RSS     3.4 MB   GC-heap     0.5 MB
+  after full index (50063 syms, 638ms)           RSS    62.2 MB   GC-heap    66.6 MB
+==============================================================================
+Index cost: +58.7 MB RSS for 50063 symbols  →  1229 bytes/symbol
+
+######## lune ########
+Footprint profile — 2026-05-29 22:38 UTC
+Target: /Users/aristotelisrapai/code/AristoRap/lune
+Crystal 1.20.2, build: release
+==============================================================================
+  baseline (process boot)                        RSS     3.4 MB   GC-heap     0.5 MB
+  after full index (52663 syms, 407ms)           RSS    68.9 MB   GC-heap    60.5 MB
+==============================================================================
+Index cost: +65.4 MB RSS for 52663 symbols  →  1302 bytes/symbol
+
+######## mint ########
+Footprint profile — 2026-05-29 22:38 UTC
+Target: /Users/aristotelisrapai/code/AristoRap/mint
+Crystal 1.20.2, build: release
+==============================================================================
+  baseline (process boot)                        RSS     3.4 MB   GC-heap     0.5 MB
+  after full index (56874 syms, 566ms)           RSS    69.0 MB   GC-heap    60.6 MB
+==============================================================================
+Index cost: +65.5 MB RSS for 56874 symbols  →  1208 bytes/symbol
