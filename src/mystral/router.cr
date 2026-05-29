@@ -8,6 +8,8 @@ require "./providers/document_symbol_provider"
 require "./providers/document_highlight_provider"
 require "./providers/references_provider"
 require "./providers/definition_provider"
+require "./providers/type_definition_provider"
+require "./providers/implementation_provider"
 require "./providers/hover_provider"
 require "./providers/completion_provider"
 require "./providers/signature_help_provider"
@@ -33,6 +35,8 @@ module Mystral
       @document_highlights = DocumentHighlightProvider.new(@context)
       @references = ReferencesProvider.new(@context)
       @definitions = DefinitionProvider.new(@context)
+      @type_definitions = TypeDefinitionProvider.new(@context)
+      @implementations = ImplementationProvider.new(@context)
       @hover = HoverProvider.new(@context, @enrichment)
       @completion = CompletionProvider.new(@context)
       @signature_help = SignatureHelpProvider.new(@context)
@@ -78,6 +82,10 @@ module Mystral
         respond_or_null(id, @references.references(params))
       when "textDocument/definition"
         respond_or_null(id, @definitions.definition(params))
+      when "textDocument/typeDefinition"
+        respond_or_null(id, @type_definitions.type_definition(params))
+      when "textDocument/implementation"
+        respond_or_null(id, @implementations.implementation(params))
       when "textDocument/hover"
         respond_hover(id, @hover.hover(params))
       when "textDocument/completion"

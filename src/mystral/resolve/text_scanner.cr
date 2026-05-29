@@ -15,10 +15,15 @@ module Mystral
     # cursor on `foo` must NOT treat `self` as a variable receiver).
     KEYWORD_RECEIVERS = {"self", "super", "nil", "true", "false"}
 
+    # Bracket-style delimiters for `%`-literals, mapped open → close.
+    LITERAL_PAIRS = {'(' => ')', '[' => ']', '{' => '}', '<' => '>'}
+
     getter lines : Array(String)
+    @string_body_lines : Set(Int32)
 
     def initialize(text : String)
       @lines = text.split('\n')
+      @string_body_lines = compute_string_body_lines
     end
 
     # The identifier at the cursor, honoring Crystal's method-name suffixes
@@ -148,9 +153,13 @@ module Mystral
     # literal — positions where an identifier-shaped token is prose or string
     # data, not a symbol reference. `#{...}` interpolation is tracked as CODE
     # (returns false there) so a real variable inside it still resolves.
-    # Single-line scan; heredocs / %-literals spanning lines aren't modeled.
+    #
+    # A line wholly inside a multi-line string body (a heredoc body, an open
+    # `%(...)`-style literal) is string data at every column — short-circuit
+    # there before the single-line scan, which can't see the cross-line context.
     def in_comment_or_string?(line : Int32, character : Int32) : Bool
       return false if line < 0 || line >= @lines.size
+      return true if @string_body_lines.includes?(line)
       l = @lines[line]
       in_string = false
       delim = '\0'
@@ -307,6 +316,93 @@ module Mystral
         end
       end
       s[i..]
+    end
+
+    # Line indices that fall ENTIRELY inside a multi-line string body — heredoc
+    # bodies and `%(...)`-style literals left open across lines. Computed once
+    # at construction. The opening line and the terminator/closing line hold
+    # real code, so they're left to the single-line scan; only the lines
+    # strictly between are pure string data. Minimal by design: `<<-`/`<<~`
+    # heredocs and bracket-delimited `%`-literals, not every exotic form.
+    private def compute_string_body_lines : Set(Int32)
+      body = Set(Int32).new
+      heredocs = [] of String # pending terminator ids, in body order
+      open_delim = '\0'       # active %-literal open bracket ('\0' = none)
+      close_delim = '\0'
+      depth = 0
+
+      @lines.each_with_index do |line, idx|
+        if open_delim != '\0'
+          body << idx
+          depth = scan_literal_depth(line, open_delim, close_delim, depth)
+          open_delim = close_delim = '\0' if depth == 0
+          next
+        end
+
+        unless heredocs.empty?
+          line.strip == heredocs.first ? heredocs.shift : (body << idx)
+          next
+        end
+
+        ids = heredoc_openers(line)
+        unless ids.empty?
+          heredocs.concat(ids)
+          next
+        end
+
+        if op = literal_opener(line)
+          open_delim, close_delim = op
+          depth = 1
+        end
+      end
+      body
+    end
+
+    # Heredoc terminator ids opened on `line` (`<<-ID` / `<<~ID`, optional
+    # quotes), in source order. Requires the `-`/`~` so the `<<` shift operator
+    # (`arr << x`) never reads as a heredoc.
+    private def heredoc_openers(line : String) : Array(String)
+      ids = [] of String
+      line.scan(/<<[-~]['"]?([A-Za-z_][A-Za-z0-9_]*)/) { |m| ids << m[1] }
+      ids
+    end
+
+    # If `line` opens a bracket-delimited `%`-literal (`%(`, `%w[`, `%q{`, …)
+    # that does NOT balance by end of line, return {open, close}; else nil.
+    private def literal_opener(line : String) : Tuple(Char, Char)?
+      i = 0
+      while i < line.size
+        if line[i] == '%' && i + 1 < line.size
+          j = i + 1
+          j += 1 if line[j].letter? # %q / %w / %i / %Q / %r / %x
+          if j < line.size && (close = LITERAL_PAIRS[line[j]]?)
+            open = line[j]
+            depth = scan_literal_depth(line, open, close, 0, j)
+            return {open, close} if depth > 0
+            i = j + 1
+            next
+          end
+        end
+        i += 1
+      end
+      nil
+    end
+
+    # Advance bracket nesting `depth` across `line` (from column `from`),
+    # returning the depth at end of line (0 once the literal closes).
+    private def scan_literal_depth(line : String, open : Char, close : Char, depth : Int32, from : Int32 = 0) : Int32
+      i = from
+      while i < line.size
+        c = line[i]
+        if c == open
+          depth += 1
+        elsif c == close
+          depth -= 1
+          return 0 if depth == 0
+        end
+        i += 1
+      end
+      depth
     end
 
     # Strict identifier body chars (walking left/right to find the bare name).

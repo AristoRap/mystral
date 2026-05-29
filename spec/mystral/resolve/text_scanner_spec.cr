@@ -23,8 +23,8 @@ describe Mystral::TextScanner do
     it "includes a setter `=` but not `==` or `=>`" do
       scanner("name = 1").word_at(0, 0).should eq("name") # `name =` is `name=`? no: space breaks it
       scanner("count= 1").word_at(0, 0).should eq("count=")
-      scanner("a == b").word_at(0, 0).should eq("a")  # not `a=`
-      scanner("k => v").word_at(0, 0).should eq("k")  # not `k=`
+      scanner("a == b").word_at(0, 0).should eq("a") # not `a=`
+      scanner("k => v").word_at(0, 0).should eq("k") # not `k=`
     end
 
     it "does NOT swallow `?` into CamelCase nilable shorthand (Foo?)" do
@@ -109,6 +109,40 @@ describe Mystral::TextScanner do
 
     it "is false on ordinary code" do
       scanner("x = 1").in_comment_or_string?(0, 0).should be_false
+    end
+
+    context "multi-line strings (heredocs / %-literals)" do
+      it "is true inside a `<<-` heredoc body" do
+        # line 0: sql = <<-SQL | line 1: body | line 2: SQL | line 3: code
+        src = "sql = <<-SQL\n  SELECT name FROM users\nSQL\nputs sql"
+        scanner(src).in_comment_or_string?(1, 4).should be_true # on SELECT, string data
+      end
+
+      it "is true inside a `<<~` (squiggly) heredoc body" do
+        src = "html = <<~HTML\n  <div>hi</div>\nHTML\n"
+        scanner(src).in_comment_or_string?(1, 4).should be_true
+      end
+
+      it "treats code after the heredoc terminator as code again" do
+        src = "sql = <<-SQL\n  SELECT name\nSQL\nputs sql"
+        scanner(src).in_comment_or_string?(3, 5).should be_false # `sql` in `puts sql`
+      end
+
+      it "is true inside a multi-line %( ) literal body" do
+        src = "x = %(\n  hello world\n)\nputs x"
+        scanner(src).in_comment_or_string?(1, 5).should be_true
+      end
+
+      it "treats code after a closed %( ) literal as code again" do
+        src = "x = %(\n  hello\n)\nputs x"
+        scanner(src).in_comment_or_string?(3, 5).should be_false # `x` in `puts x`
+      end
+
+      it "does not mistake the `<<` shift operator for a heredoc" do
+        # `arr << value` then a real reference below — must stay code.
+        src = "arr << value\nputs other"
+        scanner(src).in_comment_or_string?(1, 5).should be_false
+      end
     end
   end
 

@@ -26,6 +26,48 @@ describe Mystral::Router do
       result["serverInfo"]["version"].as_s.should eq(Mystral::VERSION)
     end
 
+    it "advertises exactly the supported capability set" do
+      # Pin the whole set so a refactor can't silently DROP a capability (e.g.
+      # hover) or ADD one whose output isn't a strict superset of the editor's
+      # built-in (advertising a weaker provider makes the editor stop using its
+      # own richer one). Update this list deliberately when a provider lands.
+      _, response = route(%({"jsonrpc":"2.0","id":1,"method":"initialize"}))
+      capabilities = response.not_nil!["result"]["capabilities"].as_h
+
+      capabilities.keys.sort.should eq([
+        "completionProvider",
+        "definitionProvider",
+        "documentFormattingProvider",
+        "documentHighlightProvider",
+        "documentSymbolProvider",
+        "hoverProvider",
+        "implementationProvider",
+        "referencesProvider",
+        "signatureHelpProvider",
+        "textDocumentSync",
+        "typeDefinitionProvider",
+        "workspaceSymbolProvider",
+      ].sort)
+
+      capabilities["documentSymbolProvider"].should eq(true)
+      capabilities["workspaceSymbolProvider"].should eq(true)
+      capabilities["documentHighlightProvider"].should eq(true)
+      capabilities["referencesProvider"].should eq(true)
+      capabilities["definitionProvider"].should eq(true)
+      capabilities["typeDefinitionProvider"].should eq(true)
+      capabilities["implementationProvider"].should eq(true)
+      capabilities["hoverProvider"].should eq(true)
+      capabilities["documentFormattingProvider"].should eq(true)
+    end
+
+    it "advertises completion + signatureHelp trigger characters" do
+      _, response = route(%({"jsonrpc":"2.0","id":1,"method":"initialize"}))
+      capabilities = response.not_nil!["result"]["capabilities"]
+
+      capabilities["completionProvider"]["triggerCharacters"].as_a.map(&.as_s).should eq([".", ":"])
+      capabilities["signatureHelpProvider"]["triggerCharacters"].as_a.map(&.as_s).should eq(["(", ","])
+    end
+
     it "never advertises foldingRange (it would degrade the editor's own folds)" do
       _, response = route(%({"jsonrpc":"2.0","id":1,"method":"initialize"}))
       capabilities = response.not_nil!["result"]["capabilities"]
@@ -55,7 +97,7 @@ describe Mystral::Router do
 
   describe "unknown request" do
     it "returns a Method-not-found error (-32601)" do
-      _, response = route(%({"jsonrpc":"2.0","id":3,"method":"textDocument/typeDefinition"}))
+      _, response = route(%({"jsonrpc":"2.0","id":3,"method":"textDocument/rename"}))
       response.not_nil!["error"]["code"].as_i.should eq(-32601)
     end
   end

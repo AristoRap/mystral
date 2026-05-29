@@ -1,91 +1,67 @@
+[![Version](https://img.shields.io/github/v/tag/AristoRap/mystral?label=version)](https://github.com/AristoRap/mystral/tags)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Crystal](https://img.shields.io/badge/crystal-%3E%3D%201.20.2-black?logo=crystal)](https://crystal-lang.org)
+
 # Mystral
 
-A blazing-fast language server for [Crystal](https://crystal-lang.org/), shipped as a
-single binary that talks LSP over stdio.
+A blazing-fast, index-based Crystal language server, single binary over stdio.
 
-The idea is simple: keep the editor responsive. Mystral answers hover, go-to-definition,
-outline, and the rest straight from a parser and an in-memory symbol index, so they come
-back in milliseconds instead of seconds. Anything that genuinely needs the Crystal
-compiler (semantic diagnostics, type enrichment) runs on a background worker and never
-blocks what you're typing.
+Answers from the parsed AST + an in-memory index. Compiler-derived facts (type errors,
+deeper inference) run in the background, cached and hash-keyed to the buffer.
 
-It's an experiment in a different approach to Crystal tooling — not a replacement. Just trying out what "fast by default"
-feels like.
+## No guessing
 
-## What you get
+Sure or nothing — no plausible lies. A cached fact is dropped the moment it might be stale.
 
-- **Hover** — signature, doc comment, and source location for the thing under your cursor
-- **Go to Definition** — jump to where a name is defined
-- **Diagnostics** — syntax errors as you type, plus real compiler errors once an edit settles
-- **Outline & Workspace Symbols** — the document outline and fuzzy search across symbols
-- **Completion, Signature Help, References, Document Highlight, Formatting**
+Hover returns the first thing it can stand behind, in order:
 
-## Try it
+1. cached compiler fact (only if it still matches the buffer)
+2. `@ivar` / `@@cvar` declared type (exclusive)
+3. parameter
+4. block parameter (`|x|`)
+5. local, typed from its assignment
+6. `getter?` / `getter!` accessor
+7. shared resolver: receiver-aware name lookup (scope, inheritance, includes)
+8. unprovable but looks like a local → background compile, brief `resolving…`
+9. nothing
 
-You'll need Crystal (`>= 1.20.2`) installed.
+(2–6 are the bare-identifier path; a receiver jumps to 7.)
+
+## Gaps
+
+AST-first, so coverage is incomplete (never wrong, just partial): inference covers
+literals / `.new` / typed params / explicit returns — flow, generics, macros wait on a
+background fact. Completion only after `.` / `::`. Type errors lag a debounced compile.
+Type-definition and implementation are name + ancestry based.
+
+## Speed
+
+Base M1 Air (8 GB), Crystal 1.20.2.
+
+| Project |    LOC | Own symbols | Total indexed | Index time |   RSS |
+| ------- | -----: | ----------: | ------------: | ---------: | ----: |
+| mystral |  9,257 |         876 |        50,063 |     638 ms | 62 MB |
+| lune    | 19,485 |       2,486 |        52,663 |     407 ms | 69 MB |
+| mint    | 33,760 |       5,099 |        56,874 |     566 ms | 69 MB |
+
+Total indexed / index time / RSS include the Crystal stdlib + shards loaded on startup
+(~49k symbols, the same for every project), so they barely move with project size — the
+"own symbols" column is the project's actual contribution. Hot path: symbol lookup ~10 ns,
+single-file reparse ~55 µs–0.5 ms. `make bench` / `make footprint` to reproduce.
+
+## Run
 
 ```sh
-# build the binary
 make release
-
-# it just runs the language server on stdio
-./bin/mystral
-
-# or poke at a single file without an editor
-./bin/mystral check path/to/file.cr
+./bin/mystral             # LSP on stdio
+./bin/mystral check f.cr  # inspect one file
 ```
 
-## Is it actually fast?
+Editor config: [editors/](editors/) — [VSCode](editors/vscode/),
+[Neovim](editors/neovim/), [Helix](editors/helix/).
 
-Speed is the whole point, so it gets measured, not hand-waved. Run them yourself with
-`make bench` and `make footprint`, and save a baseline before any perf experiment.
+## Dev
 
-The numbers below come from a **base M1 MacBook Air (8-core, 8 GB RAM), macOS 26.5,
-Crystal 1.20.2** — deliberately a modest machine, not a maxed-out workstation. The M1 is
-plenty quick, so if you're on anything at least that fast you should see the same
-snappiness.
-
-**Indexing a whole project** — your code _plus_ stdlib and every shard, i.e. everything
-the server loads on startup:
-
-| Project | Symbols | Index time | Memory (RSS) |
-| ------- | ------: | ---------: | -----------: |
-| lune    |  52,663 |     407 ms |       ~65 MB |
-| mint    |  56,874 |     566 ms |       ~66 MB |
-| mystral |  50,063 |     638 ms |       ~59 MB |
-
-So ~50–57k symbols indexed in well under a second, landing around 1.2 KB/symbol (the
-symbol records are packed inline as structs — no per-entry heap object).
-
-**The hot path** — what runs between your cursor and an answer:
-
-- symbol lookup (the side-index read): **~0.01 µs**, i.e. roughly 10ns — it's a plain
-  in-RAM hash, not a database
-- re-parsing a single file on edit: **~55 µs** small file, **~0.5 ms** for a 640-line one
-- cold workspace scan: **~0.5 ms/file**
-
-No compiler ever touches that path. The semantic stuff (real type errors, enrichment)
-runs on a background worker and never blocks what you're typing.
-
-## Editors
-
-Setup notes for each editor live under [`editors/`](editors/):
-
-- [VSCode](editors/vscode/) — a small dev extension you run via the Extension Development Host (F5)
-- [Neovim](editors/neovim/)
-- [Helix](editors/helix/)
-
-## Development
-
-```sh
-make setup   # install dependencies
-make test    # run the specs
-make build   # debug build
-make bench    # benchmarks
-```
-
-Run `make help` to see every target.
-
-## License
+`make setup` / `test` / `build` / `bench`; `make help` for the rest.
 
 MIT — see [LICENSE](LICENSE).

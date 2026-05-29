@@ -24,13 +24,15 @@ module Mystral
     def initialize_result
       {
         capabilities: {
-          textDocumentSync:        1, # Full document sync (TextDocumentSyncKind.Full)
-          documentSymbolProvider:    true,
-          workspaceSymbolProvider:   true,
-          documentHighlightProvider: true,
-          referencesProvider:        true,
-          definitionProvider:        true,
-          hoverProvider:             true,
+          textDocumentSync:           1, # Full document sync (TextDocumentSyncKind.Full)
+          documentSymbolProvider:     true,
+          workspaceSymbolProvider:    true,
+          documentHighlightProvider:  true,
+          referencesProvider:         true,
+          definitionProvider:         true,
+          typeDefinitionProvider:     true,
+          implementationProvider:     true,
+          hoverProvider:              true,
           completionProvider:         {triggerCharacters: [".", ":"]},
           signatureHelpProvider:      {triggerCharacters: ["(", ","]},
           documentFormattingProvider: true,
