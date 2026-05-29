@@ -1,0 +1,206 @@
+{
+  "Method definition": {
+    "prefix": "def",
+    "body": [
+      "def ${1:name}(${2:args})",
+      "  $0",
+      "end"
+    ],
+    "description": "def name(args) ... end"
+  },
+  "Class method": {
+    "prefix": "defs",
+    "body": [
+      "def self.${1:name}(${2:args})",
+      "  $0",
+      "end"
+    ],
+    "description": "def self.name(args) ... end"
+  },
+  "Initializer": {
+    "prefix": "defi",
+    "body": [
+      "def initialize(${1:args})",
+      "  $0",
+      "end"
+    ],
+    "description": "def initialize(args) ... end"
+  },
+  "Class": {
+    "prefix": "cls",
+    "body": [
+      "class ${1:Name}",
+      "  $0",
+      "end"
+    ],
+    "description": "class Name ... end"
+  },
+  "Subclass": {
+    "prefix": "clsx",
+    "body": [
+      "class ${1:Name} < ${2:Parent}",
+      "  $0",
+      "end"
+    ],
+    "description": "class Name < Parent ... end"
+  },
+  "Module": {
+    "prefix": "mod",
+    "body": [
+      "module ${1:Name}",
+      "  $0",
+      "end"
+    ],
+    "description": "module Name ... end"
+  },
+  "Struct": {
+    "prefix": "str",
+    "body": [
+      "struct ${1:Name}",
+      "  $0",
+      "end"
+    ],
+    "description": "struct Name ... end"
+  },
+  "Enum": {
+    "prefix": "enum",
+    "body": [
+      "enum ${1:Name}",
+      "  $0",
+      "end"
+    ],
+    "description": "enum Name ... end"
+  },
+  "Record": {
+    "prefix": "record",
+    "body": [
+      "record ${1:Name}, ${2:field : Type}"
+    ],
+    "description": "record Name, field : Type, ..."
+  },
+  "Getter": {
+    "prefix": "getter",
+    "body": [
+      "getter ${1:name} : ${2:Type}"
+    ],
+    "description": "getter name : Type"
+  },
+  "Property": {
+    "prefix": "property",
+    "body": [
+      "property ${1:name} : ${2:Type}"
+    ],
+    "description": "property name : Type"
+  },
+  "Setter": {
+    "prefix": "setter",
+    "body": [
+      "setter ${1:name} : ${2:Type}"
+    ],
+    "description": "setter name : Type"
+  },
+  "Macro": {
+    "prefix": "macro",
+    "body": [
+      "macro ${1:name}(${2:args})",
+      "  $0",
+      "end"
+    ],
+    "description": "macro name(args) ... end"
+  },
+  "If": {
+    "prefix": "if",
+    "body": [
+      "if ${1:cond}",
+      "  $0",
+      "end"
+    ],
+    "description": "if cond ... end"
+  },
+  "If/else": {
+    "prefix": "ife",
+    "body": [
+      "if ${1:cond}",
+      "  $2",
+      "else",
+      "  $0",
+      "end"
+    ],
+    "description": "if cond ... else ... end"
+  },
+  "Unless": {
+    "prefix": "unless",
+    "body": [
+      "unless ${1:cond}",
+      "  $0",
+      "end"
+    ],
+    "description": "unless cond ... end"
+  },
+  "Case/when": {
+    "prefix": "case",
+    "body": [
+      "case ${1:value}",
+      "when ${2:pattern}",
+      "  $0",
+      "end"
+    ],
+    "description": "case value ... when pattern ... end"
+  },
+  "Begin/rescue": {
+    "prefix": "begin",
+    "body": [
+      "begin",
+      "  $1",
+      "rescue ${2:ex} : ${3:Exception}",
+      "  $0",
+      "end"
+    ],
+    "description": "begin ... rescue ex : Exception ... end"
+  },
+  "Each block (do/end)": {
+    "prefix": "each",
+    "body": [
+      "${1:collection}.each do |${2:item}|",
+      "  $0",
+      "end"
+    ],
+    "description": "collection.each do |item| ... end"
+  },
+  "Lib + fun": {
+    "prefix": "lib",
+    "body": [
+      "lib ${1:Lib}",
+      "  fun ${2:name}(${3:args}) : ${4:Type}",
+      "end"
+    ],
+    "description": "lib Lib ... fun name(args) : Type ... end"
+  },
+  "Spec it": {
+    "prefix": "it",
+    "body": [
+      "it \"${1:does something}\" do",
+      "  $0",
+      "end"
+    ],
+    "description": "it \"...\" do ... end"
+  },
+  "Spec describe": {
+    "prefix": "desc",
+    "body": [
+      "describe ${1:Subject} do",
+      "  $0",
+      "end"
+    ],
+    "description": "describe Subject do ... end"
+  },
+  "Spec context": {
+    "prefix": "ctx",
+    "body": [
+      "context \"${1:when something}\" do",
+      "  $0",
+      "end"
+    ],
+    "description": "context \"...\" do ... end"
+  }
+}

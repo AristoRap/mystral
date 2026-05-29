@@ -1,0 +1,12 @@
+# Mystral — Helix language-server config snippet.
+#
+# Merge into ~/.config/helix/languages.toml. Helix already ships a
+# [[language]] entry for Crystal; this adds Mystral as its
+# language-server.
+
+[language-server.mystral]
+command = "mystral"
+
+[[language]]
+name = "crystal"
+language-servers = ["mystral"]

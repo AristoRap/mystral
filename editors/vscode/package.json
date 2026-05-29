@@ -1,0 +1,82 @@
+{
+  "name": "mystral-vscode",
+  "displayName": "Mystral (Crystal LSP)",
+  "description": "Dev extension that wires the Mystral binary into VSCode as a Crystal language server.",
+  "version": "0.0.3",
+  "private": true,
+  "publisher": "mystral-dev",
+  "type": "module",
+  "engines": {
+    "vscode": "^1.94.0"
+  },
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "crystal",
+        "aliases": [
+          "Crystal",
+          "crystal"
+        ],
+        "extensions": [
+          ".cr"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "crystal",
+        "scopeName": "source.crystal",
+        "path": "./syntaxes/crystal.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "crystal",
+        "path": "./snippets/crystal.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[crystal]": {
+        "editor.defaultFormatter": "mystral-dev.mystral-vscode"
+      }
+    },
+    "configuration": {
+      "title": "Mystral",
+      "properties": {
+        "mystral.binaryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the mystral binary. Empty = use <extension>/../../bin/mystral (i.e. the binary from the repo this extension lives in)."
+        },
+        "mystral.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace LSP communication to the Mystral output channel."
+        },
+        "mystral.debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable verbose server-side debug logging (sets MYSTRAL_DEBUG=1 in the server process). Logs land in /tmp/mystral.log and on STDERR."
+        },
+        "mystral.excludeDirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Directory names to leave out of the symbol index (matched at any depth), e.g. [\"vendor\", \"tmp\"]. Declutters hover/completion/navigation; does NOT affect diagnostics — errors still fire in these dirs, including spec/."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}
