@@ -1,4 +1,5 @@
 require "./mystral/lsp/types"
+require "./mystral/lsp/protocol"
 require "./mystral/transport"
 require "./mystral/server"
 

@@ -6,7 +6,7 @@ require "../spec_helper"
 private def route(message_json : String) : {Bool, JSON::Any?}
   sink = IO::Memory.new
   transport = Mystral::Transport.new(IO::Memory.new, sink, IO::Memory.new)
-  context = Mystral::ServerContext.new(IO::Memory.new, false)
+  context = Mystral::ServerContext.new(Mystral::Index.new, Mystral::Documents.new, IO::Memory.new, false)
   router = Mystral::Router.new(transport, context)
 
   exited = router.handle(JSON.parse(message_json))

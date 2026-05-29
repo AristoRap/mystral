@@ -22,7 +22,7 @@ module Mystral
       @log = log || open_log_target
       @debug = debug || debug_env?
       @transport = Transport.new(input, output, @log)
-      @context = ServerContext.new(@log, @debug)
+      @context = ServerContext.new(Index.new, Documents.new, @log, @debug)
       @router = Router.new(@transport, @context)
     end
 

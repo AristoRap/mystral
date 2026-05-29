@@ -38,6 +38,20 @@ module Mystral
       end
     end
 
+    # A flat symbol record for documentSymbol / workspace/symbol responses.
+    # `kind` is an LSP::SymbolKind value; `location.range` spans the symbol's
+    # full body for documentSymbol (so breadcrumbs/sticky-scroll know which
+    # symbol the cursor is inside).
+    record SymbolInformation, name : String, kind : Int32, location : Location do
+      def to_json(json : JSON::Builder) : Nil
+        json.object do
+          json.field "name", name
+          json.field "kind", kind
+          json.field "location", location
+        end
+      end
+    end
+
     record MarkupContent, kind : String, value : String do
       def to_json(json : JSON::Builder) : Nil
         json.object do

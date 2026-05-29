@@ -2,6 +2,7 @@ require "json"
 require "./transport"
 require "./server_context"
 require "./providers/lifecycle"
+require "./providers/document_symbol_provider"
 
 module Mystral
   # Routes one LSP message to the provider that owns it, and owns the
@@ -13,7 +14,8 @@ module Mystral
   # `handle` returns true only when the client asked us to exit.
   class Router
     def initialize(@transport : Transport, @context : ServerContext)
-      @lifecycle = LifecycleProvider.new
+      @lifecycle = LifecycleProvider.new(@context)
+      @document_symbols = DocumentSymbolProvider.new(@context)
     end
 
     # Returns true if the server should exit after handling this message.
@@ -39,6 +41,8 @@ module Mystral
         respond(id, @lifecycle.initialize_result)
       when "shutdown"
         respond_null(id)
+      when "textDocument/documentSymbol"
+        respond(id, @document_symbols.document_symbol(params))
       else
         respond_error(id, -32601, "Method not found: #{method}")
       end
@@ -49,6 +53,12 @@ module Mystral
       case method
       when "initialized"
         # Client is ready; nothing to do.
+      when "textDocument/didOpen"
+        @lifecycle.did_open(params)
+      when "textDocument/didChange"
+        @lifecycle.did_change(params)
+      when "textDocument/didClose"
+        @lifecycle.did_close(params)
       when "exit"
         return true
       end
