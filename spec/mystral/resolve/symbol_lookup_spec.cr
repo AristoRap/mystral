@@ -5,7 +5,9 @@ private URI = "file:///t.cr"
 private def resolver_for(src : String) : Mystral::Resolver
   index = Mystral::Index.new
   index.reindex(URI, src)
-  Mystral::Resolver.new(index)
+  docs = Mystral::Documents.new
+  docs.set(URI, src)
+  Mystral::Resolver.new(index, docs)
 end
 
 # matches_at, returning the containers of the resolved symbols.
@@ -118,16 +120,25 @@ describe Mystral::SymbolLookup do
     containers(src, "count", 3).should be_empty
   end
 
-  it "defers variable / chain receivers until the ReceiverResolver lands" do
+  it "resolves a method through a typed instance-variable receiver" do
     src = <<-CR
-      class C
+      class Result
+        def value
+        end
+      end
+      class App
+        @r : Result
         def go
-          app.event
+          @r.value
         end
       end
       CR
-    # @receivers is nil at this increment → variable/chain receivers resolve []
-    resolver_for(src).matches_at("event", URI, "app", 2).should be_empty
-    resolver_for(src).matches_at("dispatch", URI, "app.event", 2).should be_empty
+    # @r : Result, so @r.value → Result#value
+    containers(src, "value", 7, receiver: "@r").should eq(["Result"])
+  end
+
+  it "returns [] for a receiver whose type can't be determined" do
+    src = "class C\n  def go\n    mystery.thing\n  end\nend"
+    resolver_for(src).matches_at("thing", URI, "mystery", 2).should be_empty
   end
 end

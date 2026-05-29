@@ -21,7 +21,7 @@ module Mystral
     getter? debug : Bool
 
     def initialize(@index : Index, @documents : Documents, @log : IO = STDERR, @debug : Bool = false)
-      @resolver = Resolver.new(@index)
+      @resolver = Resolver.new(@index, @documents)
     end
   end
 end

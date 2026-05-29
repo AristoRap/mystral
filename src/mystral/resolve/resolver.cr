@@ -1,7 +1,9 @@
 require "../index"
+require "../documents"
 require "./type_resolver"
 require "./scope_walker"
 require "./symbol_lookup"
+require "./receiver_resolver"
 
 module Mystral
   # The single resolution entry point every provider injects. It composes the
@@ -16,11 +18,16 @@ module Mystral
     getter type_resolver : TypeResolver
     getter scope_walker : ScopeWalker
     getter symbol_lookup : SymbolLookup
+    getter receiver_resolver : ReceiverResolver
 
-    def initialize(@index : Index)
+    def initialize(@index : Index, documents : Documents)
       @type_resolver = TypeResolver.new(@index)
       @scope_walker = ScopeWalker.new(@index, @type_resolver)
+      @receiver_resolver = ReceiverResolver.new(@index, @type_resolver, @scope_walker, documents)
       @symbol_lookup = SymbolLookup.new(@index, @type_resolver, @scope_walker)
+      # Plug the receiver resolver into the lookup so variable/chain receivers
+      # (`@app.event`, `foo.bar`) now resolve instead of returning [].
+      @symbol_lookup.receivers = @receiver_resolver
     end
 
     # The symbol(s) the cursor's `name` (with optional `receiver`) resolves to.

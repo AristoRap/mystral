@@ -252,6 +252,47 @@ module Mystral
       end
     end
 
+    # Split a receiver expression like `@app.event` or `Foo::Bar.baz` into
+    # ordered identifier segments with the separator preceding each (the first
+    # is `:none`). Bails on the first unrecognized char — a partial chain
+    # returns the part it could parse. A leading `@`/`@@` is valid only on the
+    # first segment (ivars).
+    def self.split_chain_segments(s : String) : Array(NamedTuple(name: String, sep: Symbol))
+      result = [] of NamedTuple(name: String, sep: Symbol)
+      i = 0
+      while i < s.size
+        sep = :none.as(Symbol)
+        if !result.empty?
+          if s[i] == '.'
+            sep = :dot
+            i += 1
+          elsif i + 1 < s.size && s[i] == ':' && s[i + 1] == ':'
+            sep = :double_colon
+            i += 2
+          else
+            return result
+          end
+        end
+
+        seg_start = i
+        if result.empty?
+          while i < s.size && s[i] == '@'
+            i += 1
+          end
+        end
+        while i < s.size && word_char?(s[i])
+          i += 1
+        end
+        if i < s.size && (s[i] == '?' || s[i] == '!')
+          i += 1
+        end
+
+        return result if seg_start == i
+        result << {name: s[seg_start...i], sep: sep}
+      end
+      result
+    end
+
     # The trailing chain expression of `s` (`...x.foo.bar` → `x.foo.bar`).
     def self.chain_expr_at_end(s : String) : String
       i = s.size
