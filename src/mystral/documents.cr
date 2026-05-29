@@ -43,6 +43,12 @@ module Mystral
       @buffers.has_key?(uri)
     end
 
+    # Yield each open buffer as (uri, text). Used by the compile path to map
+    # disk verdicts back to the editor's open files.
+    def each_open(& : String, String ->) : Nil
+      @buffers.each { |uri, text| yield uri, text }
+    end
+
     # Live buffer if open; else the file's current disk contents. nil for a
     # non-file URI we don't have open, or an unreadable path.
     def text_for(uri : String) : String?

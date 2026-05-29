@@ -1,4 +1,7 @@
+require "compiler/crystal/syntax"
 require "../server_context"
+require "../lsp/types"
+require "../lsp/protocol"
 
 module Mystral
   # Lifecycle: the `initialize` response (capabilities + serverInfo) and the
@@ -44,7 +47,7 @@ module Mystral
       uri = doc["uri"].as_s
       text = doc["text"].as_s
       @context.documents.set(uri, text)
-      @context.index.reindex(uri, text)
+      publish_parse(uri, text, @context.index.reindex(uri, text))
     end
 
     def did_change(params : JSON::Any?) : Nil
@@ -56,7 +59,10 @@ module Mystral
       return if changes.empty?
       text = changes.last["text"].as_s
       @context.documents.set(uri, text)
-      @context.index.reindex(uri, text)
+      publish_parse(uri, text, @context.index.reindex(uri, text))
+      # Debounced background semantic check. Fast path: records last-changed
+      # time + adds to a Set, no I/O.
+      @context.compile_worker.enqueue(uri, text)
     end
 
     def did_close(params : JSON::Any?) : Nil
@@ -65,6 +71,29 @@ module Mystral
       # Drop the live buffer only — the index keeps the file's symbols (it's
       # still on disk; workspace knowledge outlives a tab). See Documents#close.
       @context.documents.close(uri)
+    end
+
+    # Feed the parse half of the per-URI diagnostic merge — NOT the wire
+    # directly. An empty list clears the parser's prior syntax error but leaves
+    # the compile half intact, so a valid-syntax edit no longer erases a live
+    # semantic squiggle (see Diagnostics).
+    private def publish_parse(uri : String, text : String, error : ::Crystal::SyntaxException?) : Nil
+      parse = error ? [diagnostic_for(text, error)] : [] of LSP::Diagnostic
+      @context.diagnostics.set_parse(uri, parse)
+    end
+
+    private def diagnostic_for(text : String, error : ::Crystal::SyntaxException) : LSP::Diagnostic
+      # Crystal reports 1-indexed line/column; LSP is 0-indexed. Clamp at 0 for
+      # the rare pre-source position the parser reports as 0.
+      line = (error.line_number - 1).clamp(0, Int32::MAX)
+      col = (error.column_number - 1).clamp(0, Int32::MAX)
+      end_col = col + (error.size || 1)
+      LSP::Diagnostic.new(
+        LSP::Range.new(LSP::Position.new(line, col), LSP::Position.new(line, end_col)),
+        LSP::DiagnosticSeverity::ERROR,
+        "mystral",
+        error.message || "syntax error",
+      )
     end
   end
 end

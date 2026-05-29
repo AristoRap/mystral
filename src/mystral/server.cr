@@ -17,17 +17,27 @@ module Mystral
 
     getter log : IO
     getter? debug : Bool
+    # Exposed so production wiring (the CLI) can build the compile processor +
+    # enrichment closures with access to the shared state, then inject them.
+    getter context : ServerContext
 
     def initialize(input : IO = STDIN, output : IO = STDOUT, log : IO? = nil, debug : Bool = false)
       @log = log || open_log_target
       @debug = debug || debug_env?
       @transport = Transport.new(input, output, @log)
-      @context = ServerContext.new(Index.new, Documents.new, @log, @debug)
+      @context = ServerContext.new(Index.new, Documents.new, @log, @debug, transport: @transport, async_compile: true)
       @router = Router.new(@transport, @context)
+    end
+
+    # Wire the production compile processor (built externally with access to
+    # @context) into the worker. Call before #run.
+    def use_compile_processor(p : Proc(String, String?, Nil)) : Nil
+      @context.compile_worker.use_processor(p)
     end
 
     def run : Nil
       log "mystral v#{Mystral::VERSION}: server started, awaiting LSP frames on stdin"
+      @context.compile_worker.start
       loop do
         begin
           message = @transport.read
@@ -48,6 +58,7 @@ module Mystral
           log "error handling message: #{ex.class}: #{ex.message}"
         end
       end
+      @context.compile_worker.stop
       log "server loop exiting"
     end
 

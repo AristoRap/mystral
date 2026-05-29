@@ -6,7 +6,12 @@ authors:
 
 targets:
   mystral:
-    main: src/mystral.cr
+    main: src/cli.cr
+
+dependencies:
+  argy:
+    github: AristoRap/argy
+    version: ~> 0.3
 
 crystal: ">= 1.20.2"
 
