@@ -27,6 +27,8 @@ module Mystral
           referencesProvider:        true,
           definitionProvider:        true,
           hoverProvider:             true,
+          completionProvider:        {triggerCharacters: [".", ":"]},
+          signatureHelpProvider:     {triggerCharacters: ["(", ","]},
         },
         serverInfo: {
           name:    "mystral",

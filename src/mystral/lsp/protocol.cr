@@ -13,6 +13,18 @@ module Mystral
       STRUCT   = 23
     end
 
+    # LSP `CompletionItemKind` enum values — the subset we map our symbol
+    # kinds onto.
+    module CompletionItemKind
+      TEXT     =  1
+      METHOD   =  2
+      FUNCTION =  3
+      CLASS    =  7
+      MODULE   =  9
+      ENUM     = 13
+      STRUCT   = 22
+    end
+
     # LSP `DiagnosticSeverity` enum values. Defined here for the diagnostics
     # increment; not yet consumed.
     module DiagnosticSeverity

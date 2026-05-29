@@ -7,6 +7,8 @@ require "./providers/document_highlight_provider"
 require "./providers/references_provider"
 require "./providers/definition_provider"
 require "./providers/hover_provider"
+require "./providers/completion_provider"
+require "./providers/signature_help_provider"
 
 module Mystral
   # Routes one LSP message to the provider that owns it, and owns the
@@ -24,6 +26,8 @@ module Mystral
       @references = ReferencesProvider.new(@context)
       @definitions = DefinitionProvider.new(@context)
       @hover = HoverProvider.new(@context)
+      @completion = CompletionProvider.new(@context)
+      @signature_help = SignatureHelpProvider.new(@context)
     end
 
     # Returns true if the server should exit after handling this message.
@@ -61,6 +65,10 @@ module Mystral
         respond_or_null(id, @definitions.definition(params))
       when "textDocument/hover"
         respond_hover(id, @hover.hover(params))
+      when "textDocument/completion"
+        respond(id, @completion.completion(params))
+      when "textDocument/signatureHelp"
+        respond_or_null(id, @signature_help.signature_help(params))
       else
         respond_error(id, -32601, "Method not found: #{method}")
       end
