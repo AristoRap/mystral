@@ -1,0 +1,13 @@
+name: mystral
+version: 0.1.0
+
+authors:
+  - Aristotelis Rapai <aristorap.dev@gmail.com>
+
+targets:
+  mystral:
+    main: src/mystral.cr
+
+crystal: ">= 1.20.2"
+
+license: MIT
