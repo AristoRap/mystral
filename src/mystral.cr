@@ -17,7 +17,7 @@ require "./mystral/server"
 # This file is the library root: it pulls in the pieces in dependency order.
 # The executable entry point lives in src/cli.cr (the shard target's main).
 module Mystral
-  VERSION = "0.1.0"
+  VERSION = {{ `shards version "#{__DIR__}"`.chomp.stringify }}
 
   # The one build identity the CLI and serverInfo both report. Carries the
   # version today; a git commit can be folded in here later without touching
