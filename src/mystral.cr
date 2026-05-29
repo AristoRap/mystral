@@ -1,5 +1,6 @@
 require "./mystral/lsp/types"
 require "./mystral/transport"
+require "./mystral/server"
 
 # Mystral — a blazing-fast, parser-driven Crystal language server.
 #
