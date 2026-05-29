@@ -230,8 +230,9 @@ module Mystral
     end
 
     # Scan the enclosing type body for `@<name> = expr` (latest wins) when no
-    # indexed ivar covers it. ivars only.
-    private def ivar_type_via_body_assignment(uri : String, line : Int32, name : String) : String?
+    # indexed ivar covers it. ivars only. Public so instance-var hover can use
+    # the same fallback.
+    def ivar_type_via_body_assignment(uri : String, line : Int32, name : String) : String?
       text = @documents.text_for(uri)
       return nil unless text
       enclosing = @index.symbols_in(uri).find do |s|

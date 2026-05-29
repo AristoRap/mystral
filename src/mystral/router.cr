@@ -6,6 +6,7 @@ require "./providers/document_symbol_provider"
 require "./providers/document_highlight_provider"
 require "./providers/references_provider"
 require "./providers/definition_provider"
+require "./providers/hover_provider"
 
 module Mystral
   # Routes one LSP message to the provider that owns it, and owns the
@@ -22,6 +23,7 @@ module Mystral
       @document_highlights = DocumentHighlightProvider.new(@context)
       @references = ReferencesProvider.new(@context)
       @definitions = DefinitionProvider.new(@context)
+      @hover = HoverProvider.new(@context)
     end
 
     # Returns true if the server should exit after handling this message.
@@ -57,6 +59,8 @@ module Mystral
         respond_or_null(id, @references.references(params))
       when "textDocument/definition"
         respond_or_null(id, @definitions.definition(params))
+      when "textDocument/hover"
+        respond_hover(id, @hover.hover(params))
       else
         respond_error(id, -32601, "Method not found: #{method}")
       end
@@ -93,6 +97,11 @@ module Mystral
     # that "find nothing" must answer with null, not omit the response.
     private def respond_or_null(id, value) : Nil
       value.nil? ? respond_null(id) : respond(id, value)
+    end
+
+    # Hover wraps its MarkupContent in `{contents: ...}`; null when no hover.
+    private def respond_hover(id, content : LSP::MarkupContent?) : Nil
+      content.nil? ? respond_null(id) : respond(id, {contents: content})
     end
 
     private def respond_error(id, code : Int32, message : String) : Nil

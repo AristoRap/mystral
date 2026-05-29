@@ -26,6 +26,7 @@ module Mystral
           documentHighlightProvider: true,
           referencesProvider:        true,
           definitionProvider:        true,
+          hoverProvider:             true,
         },
         serverInfo: {
           name:    "mystral",

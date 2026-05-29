@@ -55,7 +55,7 @@ describe Mystral::Router do
 
   describe "unknown request" do
     it "returns a Method-not-found error (-32601)" do
-      _, response = route(%({"jsonrpc":"2.0","id":3,"method":"textDocument/hover"}))
+      _, response = route(%({"jsonrpc":"2.0","id":3,"method":"textDocument/typeDefinition"}))
       response.not_nil!["error"]["code"].as_i.should eq(-32601)
     end
   end
