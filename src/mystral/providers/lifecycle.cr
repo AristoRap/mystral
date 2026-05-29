@@ -21,8 +21,10 @@ module Mystral
       {
         capabilities: {
           textDocumentSync:        1, # Full document sync (TextDocumentSyncKind.Full)
-          documentSymbolProvider:  true,
-          workspaceSymbolProvider: true,
+          documentSymbolProvider:    true,
+          workspaceSymbolProvider:   true,
+          documentHighlightProvider: true,
+          referencesProvider:        true,
         },
         serverInfo: {
           name:    "mystral",

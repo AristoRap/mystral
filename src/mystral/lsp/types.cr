@@ -61,6 +61,20 @@ module Mystral
       end
     end
 
+    # One highlight of the cursor's identifier within the current document.
+    # We emit kind=1 (Text) explicitly even though it's the spec default —
+    # some clients drop highlights without it.
+    record DocumentHighlight, range : Range do
+      KIND_TEXT = 1
+
+      def to_json(json : JSON::Builder) : Nil
+        json.object do
+          json.field "range", range
+          json.field "kind", KIND_TEXT
+        end
+      end
+    end
+
     record Diagnostic, range : Range, severity : Int32, source : String, message : String do
       def to_json(json : JSON::Builder) : Nil
         json.object do

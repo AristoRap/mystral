@@ -3,6 +3,8 @@ require "./transport"
 require "./server_context"
 require "./providers/lifecycle"
 require "./providers/document_symbol_provider"
+require "./providers/document_highlight_provider"
+require "./providers/references_provider"
 
 module Mystral
   # Routes one LSP message to the provider that owns it, and owns the
@@ -16,6 +18,8 @@ module Mystral
     def initialize(@transport : Transport, @context : ServerContext)
       @lifecycle = LifecycleProvider.new(@context)
       @document_symbols = DocumentSymbolProvider.new(@context)
+      @document_highlights = DocumentHighlightProvider.new(@context)
+      @references = ReferencesProvider.new(@context)
     end
 
     # Returns true if the server should exit after handling this message.
@@ -45,6 +49,10 @@ module Mystral
         respond(id, @document_symbols.document_symbol(params))
       when "workspace/symbol"
         respond(id, @document_symbols.workspace_symbol(params))
+      when "textDocument/documentHighlight"
+        respond_or_null(id, @document_highlights.document_highlight(params))
+      when "textDocument/references"
+        respond_or_null(id, @references.references(params))
       else
         respond_error(id, -32601, "Method not found: #{method}")
       end
@@ -75,6 +83,12 @@ module Mystral
 
     private def respond_null(id) : Nil
       @transport.write({jsonrpc: "2.0", id: id, result: nil})
+    end
+
+    # Write `value` as the result, or null when it's nil. LSP request handlers
+    # that "find nothing" must answer with null, not omit the response.
+    private def respond_or_null(id, value) : Nil
+      value.nil? ? respond_null(id) : respond(id, value)
     end
 
     private def respond_error(id, code : Int32, message : String) : Nil
