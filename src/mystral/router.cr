@@ -43,6 +43,8 @@ module Mystral
         respond_null(id)
       when "textDocument/documentSymbol"
         respond(id, @document_symbols.document_symbol(params))
+      when "workspace/symbol"
+        respond(id, @document_symbols.workspace_symbol(params))
       else
         respond_error(id, -32601, "Method not found: #{method}")
       end

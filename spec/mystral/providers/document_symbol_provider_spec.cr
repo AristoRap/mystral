@@ -46,4 +46,31 @@ describe Mystral::DocumentSymbolProvider do
     kind_of.call("Bar").should eq(Mystral::LSP::SymbolKind::MODULE)
     kind_of.call("baz").should eq(Mystral::LSP::SymbolKind::METHOD)
   end
+
+  describe "#workspace_symbol" do
+    it "returns matches by name substring across the index" do
+      index = Mystral::Index.new
+      index.reindex("file:///a.cr", "class Apple\nend")
+      index.reindex("file:///b.cr", "class Banana\nend\ndef applesauce; end")
+      context = Mystral::ServerContext.new(index, Mystral::Documents.new, IO::Memory.new, false)
+      provider = Mystral::DocumentSymbolProvider.new(context)
+
+      params = JSON.parse(%({"query":"apple"}))
+      names = provider.workspace_symbol(params).map(&.name)
+      names.should contain("applesauce")
+      names.should_not contain("Banana")
+    end
+
+    it "returns everything for an empty query but skips proc literals" do
+      index = Mystral::Index.new
+      index.reindex("file:///a.cr", "HANDLER = ->(x : Int32) { x }\nclass Foo\nend")
+      context = Mystral::ServerContext.new(index, Mystral::Documents.new, IO::Memory.new, false)
+      provider = Mystral::DocumentSymbolProvider.new(context)
+
+      names = provider.workspace_symbol(JSON.parse(%({"query":""}))).map(&.name)
+      names.should contain("Foo")
+      names.should contain("HANDLER")
+      names.should_not contain("<proc>")
+    end
+  end
 end

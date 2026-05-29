@@ -20,8 +20,9 @@ module Mystral
     def initialize_result
       {
         capabilities: {
-          textDocumentSync:       1, # Full document sync (TextDocumentSyncKind.Full)
+          textDocumentSync:        1, # Full document sync (TextDocumentSyncKind.Full)
           documentSymbolProvider:  true,
+          workspaceSymbolProvider: true,
         },
         serverInfo: {
           name:    "mystral",

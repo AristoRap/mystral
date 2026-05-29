@@ -17,6 +17,22 @@ module Mystral
       @context.index.symbols_in(uri).map { |s| symbol_information_scoped(s) }
     end
 
+    # workspace/symbol — a name-substring search across the whole index. The
+    # empty query returns everything (clients fetch all, then filter locally).
+    def workspace_symbol(params : JSON::Any?) : Array(LSP::SymbolInformation)
+      results = [] of LSP::SymbolInformation
+      return results unless params
+      query = params["query"]?.try(&.as_s) || ""
+      @context.index.each_symbol do |s|
+        # `proc` kind: anonymous `->(x : T) {}` literals, indexed so parameter
+        # hover can see them — but a symbol search shouldn't surface them.
+        next if s.kind == "proc"
+        next unless query.empty? || s.name.includes?(query)
+        results << LSP::SymbolInformation.new(s.name, symbol_kind(s.kind), location_for(s))
+      end
+      results
+    end
+
     # documentSymbol wants location.range to span the symbol's FULL body —
     # outline, breadcrumbs, and sticky scroll use it to decide which symbol
     # the cursor is inside. A point-sized range left VSCode thinking the
