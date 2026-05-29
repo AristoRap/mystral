@@ -1,6 +1,7 @@
 require "compiler/crystal/syntax"
 require "./index/entry"
 require "./index/symbol_visitor"
+require "./support/symbol_cache"
 
 module Mystral
   # In-memory symbol index: per-URI symbol lists plus a name-keyed secondary
@@ -8,6 +9,14 @@ module Mystral
   # increment; the parallel workspace scan, disk symbol cache, and
   # reachability filter land in a later increment.
   class Index
+    # File URIs reachable from the workspace's entry points (computed by
+    # ReachableSet during the scan). Empty by default → reachability filter
+    # off (find_by_name returns all matches). When populated, find_by_name
+    # prefers reachable matches, falling back to ALL when none in a container
+    # are reachable (stdlib/deps live outside the workspace graph, still
+    # resolve).
+    property workspace_reachable : Set(String) = Set(String).new
+
     def initialize
       @by_uri = Hash(String, Array(::Mystral::Entry)).new
       # Secondary name index, derived from @by_uri and kept in sync on every
@@ -49,7 +58,30 @@ module Mystral
       bucket = @by_name[name]?
       # `.dup` keeps the internal bucket immune to caller mutation. Cheap —
       # it's an array of struct values.
-      bucket ? bucket.dup : [] of ::Mystral::Entry
+      matches = bucket ? bucket.dup : [] of ::Mystral::Entry
+      apply_reachability(matches)
+    end
+
+    # When workspace_reachable is populated, drop matches OUTSIDE it — but only
+    # if at least one reachable match exists IN THE SAME CONTAINER. The
+    # per-container fallback matters because find_by_name("open") spans many
+    # containers (File, IO, LibC, …); a global filter would let File.open's
+    # reachability evict every LibC.open. Per-container keeps each container's
+    # fallback independent: platform-split duplicates within ONE container
+    # collapse to the reachable ones; containers not in the graph stay visible.
+    private def apply_reachability(matches : Array(::Mystral::Entry)) : Array(::Mystral::Entry)
+      return matches if @workspace_reachable.empty?
+      result = [] of ::Mystral::Entry
+      matches.group_by(&.container).each_value do |bucket|
+        reachable = bucket.select { |s| @workspace_reachable.includes?(uri_to_path(s.uri)) }
+        result.concat(reachable.empty? ? bucket : reachable)
+      end
+      result
+    end
+
+    # ReachableSet keys on absolute paths; index symbols key on file:// URIs.
+    private def uri_to_path(uri : String) : String
+      uri.starts_with?("file://") ? uri[7..] : uri
     end
 
     def each_symbol(& : ::Mystral::Entry ->) : Nil
@@ -99,6 +131,98 @@ module Mystral
         bucket.delete(s)
         @by_name.delete(s.name) if bucket.empty?
       end
+    end
+
+    # Parses every (uri, source) pair concurrently and assigns results in one
+    # pass. Only the main fiber writes @by_uri, so no locking. Work is chunked
+    # across N fibers (not one-per-file): a medium file parses in ~0.4ms, less
+    # than spawn+channel overhead, so chunking amortizes coordination. Real
+    # parallelism only under the MT flags (bench-only); otherwise cooperative.
+    def reindex_many(pairs : Enumerable({String, String})) : Nil
+      pair_array = pairs.is_a?(Array) ? pairs : pairs.to_a
+      return if pair_array.empty?
+
+      worker_count = parse_worker_count
+      chunk_size = (pair_array.size + worker_count - 1) // worker_count
+      chunks = pair_array.each_slice(chunk_size).to_a
+
+      results = Channel(Array({String, Array(::Mystral::Entry)?})).new
+      chunks.each { |chunk| schedule_chunk(chunk, results) }
+
+      chunks.size.times do
+        results.receive.each do |uri, symbols|
+          replace_uri(uri, symbols) if symbols
+        end
+      end
+    end
+
+    private def schedule_chunk(chunk : Array({String, String}), results : Channel(Array({String, Array(::Mystral::Entry)?}))) : Nil
+      job = -> {
+        # Every scheduled chunk MUST send exactly once — a short channel count
+        # blocks the receiver forever. Guard the whole chunk; degrade to nil
+        # symbols rather than let a raise skip the send.
+        parsed = begin
+          chunk.map { |uri, source| {uri, parse(uri, source).symbols} }
+        rescue
+          chunk.map { |uri, _source| {uri, nil.as(Array(::Mystral::Entry)?)} }
+        end
+        results.send(parsed)
+      }
+      spawn { job.call }
+    end
+
+    private def parse_worker_count : Int32
+      1 # no real parallelism without the MT flags; one chunk minimizes overhead
+    end
+
+    # Directories skipped on a workspace scan — project-artifact locations whose
+    # contents shouldn't show up as workspace symbols.
+    SCAN_SKIP_DIRS = {"lib", "bin", ".git", ".shards", "node_modules"}
+
+    # Walk `root` for every `.cr` file (skipping SCAN_SKIP_DIRS + exclude_dirs
+    # at any depth), read each, and reindex via reindex_many. Safe on a missing
+    # root. When `cache` is given (boot path, for rarely-changing roots like the
+    # stdlib), a (path, mtime, size) digest is checked first: a HIT deserializes
+    # symbols from disk instead of re-parsing; a MISS does the full scan and
+    # rewrites the cache. The workspace root passes no cache (it changes).
+    def scan_directory(root : String, cache : SymbolCache? = nil, exclude_dirs : Set(String) = Set(String).new) : Nil
+      return unless Dir.exists?(root)
+
+      digest = cache.try &.digest_for(root)
+      if cache && digest && (grouped = cache.load(root, digest))
+        grouped.each { |uri, syms| replace_uri(uri, syms) }
+        return
+      end
+
+      pairs = [] of {String, String}
+      collect_cr_files(root, pairs, exclude_dirs)
+      reindex_many(pairs)
+
+      if cache && digest
+        grouped = {} of String => Array(::Mystral::Entry)
+        pairs.each { |uri, _| grouped[uri] = @by_uri[uri]? || [] of ::Mystral::Entry }
+        cache.store(root, digest, grouped)
+      end
+    end
+
+    private def collect_cr_files(dir : String, pairs : Array({String, String}), exclude_dirs : Set(String) = Set(String).new) : Nil
+      Dir.each_child(dir) do |child|
+        next if SCAN_SKIP_DIRS.includes?(child) || exclude_dirs.includes?(child)
+        full = File.join(dir, child)
+        if File.directory?(full)
+          collect_cr_files(full, pairs, exclude_dirs)
+        elsif child.ends_with?(".cr")
+          begin
+            pairs << {file_uri(full), File.read(full)}
+          rescue
+            # Skip files we can't read — they shouldn't kill the whole scan.
+          end
+        end
+      end
+    end
+
+    private def file_uri(path : String) : String
+      "file://#{File.expand_path(path)}"
     end
 
     private record ParseResult,

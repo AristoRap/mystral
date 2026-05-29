@@ -3,6 +3,7 @@ require "./transport"
 require "./server_context"
 require "./providers/enrichment_requester"
 require "./providers/lifecycle"
+require "./providers/workspace_scanner"
 require "./providers/document_symbol_provider"
 require "./providers/document_highlight_provider"
 require "./providers/references_provider"
@@ -27,6 +28,7 @@ module Mystral
       # on a content change) so the dedup set lives in one place.
       @enrichment = EnrichmentRequester.new(@context)
       @lifecycle = LifecycleProvider.new(@context, @enrichment)
+      @workspace_scanner = WorkspaceScanner.new(@context)
       @document_symbols = DocumentSymbolProvider.new(@context)
       @document_highlights = DocumentHighlightProvider.new(@context)
       @references = ReferencesProvider.new(@context)
@@ -59,6 +61,11 @@ module Mystral
       case method
       when "initialize"
         respond(id, @lifecycle.initialize_result)
+        # Scan the workspace off the main fiber so the editor can send
+        # `initialized` + didOpen + follow-up requests while it runs. Progress
+        # events flow from the scan fiber; Transport#write is mutex-serialized.
+        scan_params = params
+        spawn { @workspace_scanner.scan(scan_params) }
       when "shutdown"
         respond_null(id)
       when "textDocument/documentSymbol"

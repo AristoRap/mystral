@@ -1,4 +1,5 @@
 require "../spec_helper"
+require "file_utils"
 
 private URI = "file:///t.cr"
 
@@ -188,6 +189,66 @@ describe Mystral::Index do
       index.reindex(URI, "def new_name; end")
       index.find_by_name("old_name").should be_empty
       index.find_by_name("new_name").size.should eq(1)
+    end
+  end
+
+  describe "reachability filter" do
+    it "is off when workspace_reachable is empty (returns all matches)" do
+      index = Mystral::Index.new
+      index.reindex("file:///a.cr", "struct File\n  def open\n  end\nend")
+      index.reindex("file:///b.cr", "struct File\n  def open\n  end\nend")
+      index.find_by_name("open").size.should eq(2)
+    end
+
+    it "prefers reachable matches per-container, with independent fallback (the LibC rule)" do
+      index = Mystral::Index.new
+      index.reindex("file:///a.cr", "struct File\n  def open\n  end\nend")  # File, reachable
+      index.reindex("file:///b.cr", "struct File\n  def open\n  end\nend")  # File, NOT reachable
+      index.reindex("file:///c.cr", "module LibC\n  def open\n  end\nend")  # LibC, NOT reachable
+      index.workspace_reachable = Set{"/a.cr"}
+
+      open = index.find_by_name("open")
+      by_container = open.group_by(&.container)
+      # File has a reachable match → the unreachable File#open is dropped.
+      by_container["File"].map(&.uri).should eq(["file:///a.cr"])
+      # LibC has NO reachable match → it falls back to keeping its own.
+      by_container["LibC"].map(&.uri).should eq(["file:///c.cr"])
+    end
+  end
+
+  describe "#scan_directory" do
+    it "indexes every .cr under a directory" do
+      dir = File.join(Dir.tempdir, "mystral_scan_#{Process.pid}_#{Time.utc.to_unix_ns}")
+      Dir.mkdir_p(File.join(dir, "nested"))
+      begin
+        File.write(File.join(dir, "a.cr"), "class Alpha\nend")
+        File.write(File.join(dir, "nested", "b.cr"), "class Beta\nend")
+        index = Mystral::Index.new
+        index.scan_directory(dir)
+        names = [] of String
+        index.each_symbol { |s| names << s.name }
+        names.should contain("Alpha")
+        names.should contain("Beta")
+      ensure
+        FileUtils.rm_rf(dir)
+      end
+    end
+
+    it "skips dependency/artifact dirs (lib, .git, …)" do
+      dir = File.join(Dir.tempdir, "mystral_skip_#{Process.pid}_#{Time.utc.to_unix_ns}")
+      Dir.mkdir_p(File.join(dir, "lib"))
+      begin
+        File.write(File.join(dir, "real.cr"), "class Real\nend")
+        File.write(File.join(dir, "lib", "dep.cr"), "class Dep\nend")
+        index = Mystral::Index.new
+        index.scan_directory(dir)
+        names = [] of String
+        index.each_symbol { |s| names << s.name }
+        names.should contain("Real")
+        names.should_not contain("Dep")
+      ensure
+        FileUtils.rm_rf(dir)
+      end
     end
   end
 
