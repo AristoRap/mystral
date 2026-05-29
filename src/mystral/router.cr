@@ -1,6 +1,7 @@
 require "json"
 require "./transport"
 require "./server_context"
+require "./providers/enrichment_requester"
 require "./providers/lifecycle"
 require "./providers/document_symbol_provider"
 require "./providers/document_highlight_provider"
@@ -22,12 +23,15 @@ module Mystral
   # `handle` returns true only when the client asked us to exit.
   class Router
     def initialize(@transport : Transport, @context : ServerContext)
-      @lifecycle = LifecycleProvider.new(@context)
+      # One enrichment requester shared by hover (fires) and lifecycle (forgets
+      # on a content change) so the dedup set lives in one place.
+      @enrichment = EnrichmentRequester.new(@context)
+      @lifecycle = LifecycleProvider.new(@context, @enrichment)
       @document_symbols = DocumentSymbolProvider.new(@context)
       @document_highlights = DocumentHighlightProvider.new(@context)
       @references = ReferencesProvider.new(@context)
       @definitions = DefinitionProvider.new(@context)
-      @hover = HoverProvider.new(@context)
+      @hover = HoverProvider.new(@context, @enrichment)
       @completion = CompletionProvider.new(@context)
       @signature_help = SignatureHelpProvider.new(@context)
       @formatting = FormattingProvider.new(@context)

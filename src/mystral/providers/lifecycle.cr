@@ -2,6 +2,7 @@ require "compiler/crystal/syntax"
 require "../server_context"
 require "../lsp/types"
 require "../lsp/protocol"
+require "./enrichment_requester"
 
 module Mystral
   # Lifecycle: the `initialize` response (capabilities + serverInfo) and the
@@ -11,7 +12,7 @@ module Mystral
   # Diagnostics publishing piggy-backs on these notifications in a later
   # increment; for now open/change just refresh the buffer + index.
   class LifecycleProvider
-    def initialize(@context : ServerContext)
+    def initialize(@context : ServerContext, @enrichment : EnrichmentRequester)
     end
 
     # The capability set the editor reads to decide which requests to send us,
@@ -58,7 +59,12 @@ module Mystral
       changes = params["contentChanges"].as_a
       return if changes.empty?
       text = changes.last["text"].as_s
+      old_version = @context.documents.version(uri)
       @context.documents.set(uri, text)
+      # A content change invalidates this buffer's enriched facts (version-
+      # gated reads evict them); drop the enrichment dedup keys too so the next
+      # thin hover re-fires rather than staying stuck at "resolving…".
+      @enrichment.forget(uri) if @context.documents.version(uri) != old_version
       publish_parse(uri, text, @context.index.reindex(uri, text))
       # Debounced background semantic check. Fast path: records last-changed
       # time + adds to a Set, no I/O.
@@ -71,6 +77,10 @@ module Mystral
       # Drop the live buffer only — the index keeps the file's symbols (it's
       # still on disk; workspace knowledge outlives a tab). See Documents#close.
       @context.documents.close(uri)
+      # Release the closed buffer's compile-reaped facts + enrichment keys
+      # (buffer-scoped, bounded RAM).
+      @context.inference.forget(uri)
+      @enrichment.forget(uri)
     end
 
     # Feed the parse half of the per-URI diagnostic merge — NOT the wire

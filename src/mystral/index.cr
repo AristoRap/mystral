@@ -58,6 +58,25 @@ module Mystral
       end
     end
 
+    # Type kinds that can key reaped hierarchy ancestry (have a superclass /
+    # are a hierarchy node).
+    ANCESTRY_TYPE_KINDS = {"class", "struct", "module"}
+
+    # FQNs of every type defined in a file under one of `roots` — the user's
+    # own code. Used to scope reaped `crystal tool hierarchy` ancestry to
+    # workspace types (stdlib/dep ancestry resolves via the already-indexed
+    # types). Matches the FQN shape ancestry keys use.
+    def workspace_type_names(roots : Array(String)) : Set(String)
+      names = Set(String).new
+      each_symbol do |s|
+        next unless ANCESTRY_TYPE_KINDS.includes?(s.kind)
+        path = s.uri.lchop("file://")
+        next unless roots.any? { |r| path == r || path.starts_with?("#{r}/") }
+        names << (s.container ? "#{s.container}::#{s.name}" : s.name)
+      end
+      names
+    end
+
     # Atomic swap for one URI: drop the previous symbols' name-index entries,
     # then append the new ones. Keeps @by_name in sync without rebuilding it.
     private def replace_uri(uri : String, syms : Array(::Mystral::Entry)) : Nil

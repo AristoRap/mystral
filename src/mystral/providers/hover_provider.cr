@@ -3,6 +3,7 @@ require "../resolve/text_scanner"
 require "../resolve/block_arg_parser"
 require "../resolve/signature_params"
 require "./hover_renderer"
+require "./enrichment_requester"
 
 module Mystral
   # textDocument/hover — the sub-50ms flagship, parser-only. Dispatch order
@@ -17,7 +18,7 @@ module Mystral
   # later increment (top and bottom of this dispatch respectively); for now
   # hover is purely AST/index-derived.
   class HoverProvider
-    def initialize(@context : ServerContext)
+    def initialize(@context : ServerContext, @enrichment : EnrichmentRequester)
       @renderer = HoverRenderer.new(@context)
     end
 
@@ -36,6 +37,17 @@ module Mystral
       return nil if scanner.in_comment_or_string?(line, character)
       name = scanner.word_at(line, character)
       return nil unless name
+
+      # Normalize the cursor to the identifier's START column so the side-index
+      # read and the enrichment request key off one position per token.
+      col = scanner.identifier_start_at(line, character) || character
+
+      # Side-index first: an enriched type reaped from a background run, served
+      # at parser speed as a map lookup — but only while its content-version
+      # matches the live buffer (else AST fallback, never a stale type).
+      if md = inferred_hover(uri, line, col, name)
+        return md
+      end
 
       receiver = scanner.receiver_at(line, character)
 
@@ -58,6 +70,29 @@ module Mystral
 
       matches = @context.resolver.matches_at(name, uri, receiver, line)
       return @renderer.render_hover(matches) unless matches.empty?
+
+      # Nothing resolved. If this is a local the AST can't type, fire a
+      # background enrichment so the next hover here is precise; show a hint
+      # rather than an empty hover when we actually fire.
+      if receiver.nil? && @enrichment.request(uri, text, line, col, name)
+        return @renderer.render_markup([HoverEntry.new(role: "local", name: name, pending: true)])
+      end
+      nil
+    end
+
+    # Read a compile-reaped fact for the identifier and render it; nil (→ AST
+    # fallback) when no version, no fact, or a stale version (the version gate
+    # is what keeps this from ever showing a stale type — see InferenceIndex).
+    private def inferred_hover(uri : String, line : Int32, col : Int32, name : String) : LSP::MarkupContent?
+      version = @context.documents.version(uri)
+      return nil unless version
+      scope_key = @enrichment.enclosing_def_start(uri, line)
+      if type = @context.inference.scope_local_type(uri, version, scope_key, name)
+        return @renderer.render_markup([HoverEntry.new(role: "inferred", name: name, type: type)])
+      end
+      if fact = @context.inference.fact_at(uri, version, line, col)
+        return @renderer.render_markup([HoverEntry.new(role: "inferred", name: name, type: fact.type)])
+      end
       nil
     end
 

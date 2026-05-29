@@ -9,6 +9,7 @@ require "./mystral/resolve/resolver"
 require "./mystral/transport"
 require "./mystral/diagnostics"
 require "./mystral/compile_worker"
+require "./mystral/inference_index"
 require "./mystral/server"
 
 # Mystral — a blazing-fast, parser-driven Crystal language server.

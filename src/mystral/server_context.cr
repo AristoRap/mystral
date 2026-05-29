@@ -3,6 +3,7 @@ require "./documents"
 require "./transport"
 require "./diagnostics"
 require "./compile_worker"
+require "./inference_index"
 require "./resolve/resolver"
 
 module Mystral
@@ -26,6 +27,13 @@ module Mystral
     getter transport : Transport
     getter diagnostics : Diagnostics
     getter compile_worker : CompileWorker
+    # Compile-reaped facts (hover side-index + hierarchy ancestry), shared by
+    # reference: the compile/enrich processors populate it, hover + the scope
+    # walker read it. One instance, like diagnostics.
+    getter inference : InferenceIndex
+    # On-demand hover enrichment closure (uri, line, char, scope_key), injected
+    # by the CLI after construction. Until set, thin local hovers fire nothing.
+    getter enricher : Proc(String, Int32, Int32, Int32, Nil)?
     # Workspace roots, shared BY REFERENCE with the compile processor closure:
     # the LSP `initialize` handler replaces its contents in place, and the
     # closure (capturing this same Array) sees the roots immediately.
@@ -39,7 +47,20 @@ module Mystral
       @resolver = Resolver.new(@index, @documents)
       @diagnostics = Diagnostics.new(@transport)
       @compile_worker = CompileWorker.new(@log, async: async_compile, debug: @debug)
+      @inference = InferenceIndex.new
       @workspace_roots = [] of String
+      @enricher = nil
+      # Ground-truth ancestry fallback for the scope walker: consulted only
+      # when AST parent-resolution fails (empty until the hierarchy reaper
+      # populates it, so production stays AST-only until then).
+      inference = @inference
+      @resolver.scope_walker.ancestry_source = ->(fqn : String) { inference.ancestors_of(fqn) }
+    end
+
+    # Inject the on-demand enrichment closure (built by the CLI with access to
+    # the shared state). Until set, thin local hovers fire nothing.
+    def use_enricher(p : Proc(String, Int32, Int32, Int32, Nil)) : Nil
+      @enricher = p
     end
 
     # Pop a window/showMessage toast in the client — for setup-level problems

@@ -2,6 +2,7 @@ require "../mystral/server_context"
 require "../mystral/support/workspace_entries"
 require "./compile_runner"
 require "./missing_requires"
+require "./hierarchy"
 
 module MystralCLI
   # Builds the closure CompileWorker runs when a URI settles: compile the
@@ -41,6 +42,10 @@ module MystralCLI
       # so we dedupe the toast and retract the moment requires resolve.
       notified_missing = Set(String).new
       dep_flagged = Set(String).new
+      # Program-keys we've reaped hierarchy ancestry for — that tool is a
+      # SECOND full compile, so we populate ancestry once per program (the
+      # startup compile), not per settle.
+      hierarchy_populated = Set(String).new
 
       ->(uri : String, _snapshot : String?) do
         begin
@@ -106,6 +111,18 @@ module MystralCLI
           flagged = published
           digests.clear if digests.size >= MAX_TRACKED_PROGRAMS
           digests[program_key] = digest
+
+          # Reap ground-truth ancestry once per program (a second compile), to
+          # fill the generic/macro-superclass gap walk_parents can't resolve.
+          # Scoped to workspace types so the stored map stays small. Marked
+          # attempted up front so a tool failure doesn't re-pay every settle.
+          unless hierarchy_populated.includes?(program_key)
+            hierarchy_populated << program_key
+            if hjson = Hierarchy.json_for(targets.first)
+              ancestry = Hierarchy.parse(hjson, context.index.workspace_type_names(roots))
+              context.inference.set_ancestry(ancestry)
+            end
+          end
           nil
         rescue ex
           log.puts "[#{Time.local.to_s("%H:%M:%S.%L")}] compile_processor: #{uri} EXCEPTION #{ex.class}: #{ex.message}"

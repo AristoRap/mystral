@@ -71,5 +71,14 @@ describe Mystral::ScopeWalker do
         CR
       scope_walker(src).inheritance_chain("C").should eq(["C", "B", "A"])
     end
+
+    it "falls back to reaped ancestry when AST parent resolution fails (generic super)" do
+      # `class B < A(Int32)` — the generic super doesn't match any indexed `A`,
+      # so resolve_ast_parent fails and the reaped ancestry fills the gap.
+      sw = scope_walker("class B < A(Int32)\nend")
+      sw.inheritance_chain("B").should eq(["B"]) # no ancestry source yet
+      sw.ancestry_source = ->(fqn : String) { fqn == "B" ? ["A"] : nil }
+      sw.inheritance_chain("B").should eq(["B", "A"])
+    end
   end
 end

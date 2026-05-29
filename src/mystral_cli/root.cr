@@ -1,6 +1,7 @@
 require "./commands/version"
 require "./commands/check"
 require "./compile_processor"
+require "./enrich_processor"
 
 module MystralCLI
   module Root
@@ -21,7 +22,10 @@ module MystralCLI
         # once the LSP `initialize` handler populates them) and inject it.
         processor = MystralCLI::CompileProcessor.build(server.context, server.log, debug: server.debug?)
         server.use_compile_processor(processor)
-        server.log.puts "[#{Time.local.to_s("%H:%M:%S.%L")}] root: compile processor wired (debug=#{server.debug?})"
+        # On-demand hover enrichment: a thin local hover fires a background
+        # `crystal tool context` that fills the side-index for next time.
+        server.context.use_enricher(MystralCLI::EnrichProcessor.build(server.context, server.log, debug: server.debug?))
+        server.log.puts "[#{Time.local.to_s("%H:%M:%S.%L")}] root: compile processor + enricher wired (debug=#{server.debug?})"
         server.run
       end
 

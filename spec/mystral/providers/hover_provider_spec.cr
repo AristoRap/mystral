@@ -9,7 +9,8 @@ private def hover_md(src : String, line : Int32, char : Int32) : String?
   docs = Mystral::Documents.new
   docs.set(URI, src)
   ctx = Mystral::ServerContext.new(index, docs, IO::Memory.new, false)
-  result = Mystral::HoverProvider.new(ctx).hover(
+  enrichment = Mystral::EnrichmentRequester.new(ctx)
+  result = Mystral::HoverProvider.new(ctx, enrichment).hover(
     JSON.parse(%({"textDocument":{"uri":"#{URI}"},"position":{"line":#{line},"character":#{char}}}))
   )
   result.try { |m| JSON.parse(m.to_json)["value"].as_s }
