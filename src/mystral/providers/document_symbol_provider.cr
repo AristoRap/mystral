@@ -1,6 +1,7 @@
 require "../server_context"
 require "../lsp/types"
 require "../lsp/protocol"
+require "../lsp/entry_locations"
 require "../index/entry"
 
 module Mystral
@@ -28,7 +29,7 @@ module Mystral
         # hover can see them — but a symbol search shouldn't surface them.
         next if s.kind == "proc"
         next unless query.empty? || s.name.includes?(query)
-        results << LSP::SymbolInformation.new(s.name, symbol_kind(s.kind), location_for(s))
+        results << LSP::SymbolInformation.new(s.name, symbol_kind(s.kind), LSP::EntryLocations.name_range(s))
       end
       results
     end
@@ -39,32 +40,7 @@ module Mystral
     # cursor was never "in" any symbol, thrashing decorations. Use end_line
     # when the visitor captured it; fall back to the name range otherwise.
     private def symbol_information_scoped(s : ::Mystral::Entry) : LSP::SymbolInformation
-      LSP::SymbolInformation.new(s.name, symbol_kind(s.kind), scope_location_for(s))
-    end
-
-    private def scope_location_for(s : ::Mystral::Entry) : LSP::Location
-      if end_line = s.end_line
-        LSP::Location.new(
-          s.uri,
-          LSP::Range.new(
-            LSP::Position.new(s.line, 0),
-            LSP::Position.new(end_line, 0),
-          ),
-        )
-      else
-        location_for(s)
-      end
-    end
-
-    private def location_for(s : ::Mystral::Entry) : LSP::Location
-      end_char = s.column + s.name.size
-      LSP::Location.new(
-        s.uri,
-        LSP::Range.new(
-          LSP::Position.new(s.line, s.column),
-          LSP::Position.new(s.line, end_char),
-        ),
-      )
+      LSP::SymbolInformation.new(s.name, symbol_kind(s.kind), LSP::EntryLocations.body_range(s))
     end
 
     private def symbol_kind(kind : String) : Int32

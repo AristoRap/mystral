@@ -1,7 +1,9 @@
 require "./mystral/lsp/types"
 require "./mystral/lsp/protocol"
+require "./mystral/lsp/entry_locations"
 require "./mystral/resolve/text_scanner"
 require "./mystral/resolve/cursor_context"
+require "./mystral/resolve/resolver"
 require "./mystral/transport"
 require "./mystral/server"
 

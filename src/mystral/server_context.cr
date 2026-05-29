@@ -1,5 +1,6 @@
 require "./index"
 require "./documents"
+require "./resolve/resolver"
 
 module Mystral
   # The bundle of shared, long-lived state the providers need. ONE owner
@@ -13,10 +14,14 @@ module Mystral
   class ServerContext
     getter index : Index
     getter documents : Documents
+    # The single resolver instance, built over the index — so every provider
+    # resolves symbols/types through the same code path.
+    getter resolver : Resolver
     getter log : IO
     getter? debug : Bool
 
     def initialize(@index : Index, @documents : Documents, @log : IO = STDERR, @debug : Bool = false)
+      @resolver = Resolver.new(@index)
     end
   end
 end

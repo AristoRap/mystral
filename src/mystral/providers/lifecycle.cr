@@ -25,6 +25,7 @@ module Mystral
           workspaceSymbolProvider:   true,
           documentHighlightProvider: true,
           referencesProvider:        true,
+          definitionProvider:        true,
         },
         serverInfo: {
           name:    "mystral",

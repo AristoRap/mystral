@@ -5,6 +5,7 @@ require "./providers/lifecycle"
 require "./providers/document_symbol_provider"
 require "./providers/document_highlight_provider"
 require "./providers/references_provider"
+require "./providers/definition_provider"
 
 module Mystral
   # Routes one LSP message to the provider that owns it, and owns the
@@ -20,6 +21,7 @@ module Mystral
       @document_symbols = DocumentSymbolProvider.new(@context)
       @document_highlights = DocumentHighlightProvider.new(@context)
       @references = ReferencesProvider.new(@context)
+      @definitions = DefinitionProvider.new(@context)
     end
 
     # Returns true if the server should exit after handling this message.
@@ -53,6 +55,8 @@ module Mystral
         respond_or_null(id, @document_highlights.document_highlight(params))
       when "textDocument/references"
         respond_or_null(id, @references.references(params))
+      when "textDocument/definition"
+        respond_or_null(id, @definitions.definition(params))
       else
         respond_error(id, -32601, "Method not found: #{method}")
       end
