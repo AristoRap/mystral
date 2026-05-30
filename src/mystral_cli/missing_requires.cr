@@ -17,11 +17,11 @@ module MystralCLI
 
     # The require targets the compile couldn't resolve. Non-empty ⇒ the program
     # never loaded.
-    def detect(grouped : Hash(String, Array(CompileRunner::CrystalError))) : Set(String)
+    def detect(grouped : Hash(String, Array(CompileRunner::ErrorTrace))) : Set(String)
       names = Set(String).new
-      grouped.each_value do |errs|
-        errs.each do |e|
-          if m = e.message.match(REQUIRE_NOT_FOUND_RE)
+      grouped.each_value do |traces|
+        traces.each do |t|
+          if m = t.error.message.match(REQUIRE_NOT_FOUND_RE)
             names << m[1]
           end
         end

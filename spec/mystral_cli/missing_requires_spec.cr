@@ -1,11 +1,12 @@
 require "../spec_helper"
 require "../../src/mystral_cli/missing_requires"
 
-private def grouped(*messages : String) : Hash(String, Array(MystralCLI::CompileRunner::CrystalError))
-  errs = messages.map do |m|
-    MystralCLI::CompileRunner::CrystalError.from_json(%({"file":"x.cr","line":1,"column":1,"size":1,"message":#{m.to_json}}))
+private def grouped(*messages : String) : Hash(String, Array(MystralCLI::CompileRunner::ErrorTrace))
+  traces = messages.map do |m|
+    err = MystralCLI::CompileRunner::CrystalError.from_json(%({"file":"x.cr","line":1,"column":1,"size":1,"message":#{m.to_json}}))
+    MystralCLI::CompileRunner::ErrorTrace.new(err, [] of MystralCLI::CompileRunner::CrystalError)
   end
-  {"x.cr" => errs.to_a}
+  {"x.cr" => traces.to_a}
 end
 
 describe MystralCLI::MissingRequires do

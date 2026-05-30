@@ -179,13 +179,29 @@ module Mystral
       end
     end
 
-    record Diagnostic, range : Range, severity : Int32, source : String, message : String do
+    # A related location on a Diagnostic — used to carry a compiler error's
+    # call/expansion stack (the "instantiating ..." / "expanding macro" frames)
+    # as context instead of as separate error squiggles.
+    record DiagnosticRelatedInformation, location : Location, message : String do
+      def to_json(json : JSON::Builder) : Nil
+        json.object do
+          json.field "location", location
+          json.field "message", message
+        end
+      end
+    end
+
+    record Diagnostic, range : Range, severity : Int32, source : String, message : String,
+      related_information : Array(DiagnosticRelatedInformation)? = nil do
       def to_json(json : JSON::Builder) : Nil
         json.object do
           json.field "range", range
           json.field "severity", severity
           json.field "source", source
           json.field "message", message
+          if ri = related_information
+            json.field "relatedInformation", ri unless ri.empty?
+          end
         end
       end
     end

@@ -25,6 +25,21 @@ module MystralCLI
       getter message : String
     end
 
+    # One fail-fast error and the call/expansion stack leading to it. `crystal
+    # build` stops at the first error and emits its frames innermost-LAST, so
+    # the JSON array's last element is the REAL error and the rest are context
+    # ("instantiating 'a(Int32)'", "expanding macro"). Surfacing the frames as
+    # their own squiggles is noise — and for a bad macro call the frame points
+    # at the macro body, not the user's typo. We keep the real error as the
+    # diagnostic and carry the frames as relatedInformation.
+    struct ErrorTrace
+      getter error : CrystalError
+      getter frames : Array(CrystalError)
+
+      def initialize(@error : CrystalError, @frames : Array(CrystalError))
+      end
+    end
+
     # Run one target and return its parsed error list ([] when clean or the
     # output isn't parseable).
     def compile_errors(target : String, log : IO, debug : Bool) : Array(CrystalError)
@@ -47,24 +62,26 @@ module MystralCLI
       [] of CrystalError
     end
 
-    # Compile every target and group errors by the real path of the file they
-    # live in, deduped per file (a file reachable from two entries would
-    # otherwise report each error twice). Keyed by real_path because the
-    # compiler resolves requires through symlinks.
-    def errors_grouped_by_realpath(targets : Array(String), log : IO, debug : Bool) : Hash(String, Array(CrystalError))
-      grouped = Hash(String, Array(CrystalError)).new
-      seen = Hash(String, Set({Int32, Int32, Int32, String})).new
+    # Compile every target and collect each one's error trace, grouped by the
+    # real path of the file the REAL error lives in (a frame-only file is never
+    # squiggled — it appears as relatedInformation instead). Deduped by the real
+    # error's identity, since a file reachable from two entries would otherwise
+    # report the same error twice. Keyed by real_path because the compiler
+    # resolves requires through symlinks.
+    def errors_grouped_by_realpath(targets : Array(String), log : IO, debug : Bool) : Hash(String, Array(ErrorTrace))
+      grouped = Hash(String, Array(ErrorTrace)).new
+      seen = Set({String, Int32, Int32, Int32, String}).new
       targets.each do |target|
-        compile_errors(target, log, debug).each do |e|
-          ef = e.file
-          next unless ef
-          rp = real_path(ef)
-          key = {e.line || 0, e.column || 0, e.size || 0, e.message}
-          per_file = seen[rp] ||= Set({Int32, Int32, Int32, String}).new
-          next if per_file.includes?(key)
-          per_file << key
-          (grouped[rp] ||= [] of CrystalError) << e
-        end
+        errs = compile_errors(target, log, debug)
+        next if errs.empty?
+        real = errs.last
+        ef = real.file
+        next unless ef
+        rp = real_path(ef)
+        key = {rp, real.line || 0, real.column || 0, real.size || 0, real.message}
+        next if seen.includes?(key)
+        seen << key
+        (grouped[rp] ||= [] of ErrorTrace) << ErrorTrace.new(real, errs[0...-1])
       end
       grouped
     end

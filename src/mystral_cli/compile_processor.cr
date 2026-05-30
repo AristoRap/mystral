@@ -85,7 +85,7 @@ module MystralCLI
           published = Set(String).new
 
           # 1. The settled file: always publish (empty clears, non-empty shows).
-          anchor_diags = (grouped[anchor_real]? || [] of CompileRunner::CrystalError).map { |e| diagnostic_for(e) }
+          anchor_diags = (grouped[anchor_real]? || [] of CompileRunner::ErrorTrace).map { |t| diagnostic_for(t) }
           context.diagnostics.set_compile(uri, anchor_diags)
           published << uri unless anchor_diags.empty?
 
@@ -96,7 +96,7 @@ module MystralCLI
             next if file_real == anchor_real
             duri = open_map[file_real]?
             next unless duri
-            diags = errs.map { |e| diagnostic_for(e) }
+            diags = errs.map { |t| diagnostic_for(t) }
             context.diagnostics.set_compile(duri, diags)
             published << duri unless diags.empty?
           end
@@ -178,18 +178,33 @@ module MystralCLI
       map
     end
 
-    private def diagnostic_for(e : CompileRunner::CrystalError) : Mystral::LSP::Diagnostic
+    # The real error becomes the squiggle; its trace frames ride along as
+    # relatedInformation (a frame with no file is dropped — nowhere to point).
+    private def diagnostic_for(t : CompileRunner::ErrorTrace) : Mystral::LSP::Diagnostic
+      related = t.frames.compact_map do |f|
+        ff = f.file
+        next unless ff
+        Mystral::LSP::DiagnosticRelatedInformation.new(
+          Mystral::LSP::Location.new("file://#{ff}", range_of(f)),
+          f.message,
+        )
+      end
+      Mystral::LSP::Diagnostic.new(
+        range_of(t.error),
+        DIAGNOSTIC_SEVERITY_ERROR,
+        "mystral",
+        t.error.message,
+        related.empty? ? nil : related,
+      )
+    end
+
+    private def range_of(e : CompileRunner::CrystalError) : Mystral::LSP::Range
       line = ((e.line || 1) - 1).clamp(0, Int32::MAX)
       col = ((e.column || 1) - 1).clamp(0, Int32::MAX)
       end_col = col + (e.size || 1)
-      Mystral::LSP::Diagnostic.new(
-        Mystral::LSP::Range.new(
-          Mystral::LSP::Position.new(line, col),
-          Mystral::LSP::Position.new(line, end_col),
-        ),
-        DIAGNOSTIC_SEVERITY_ERROR,
-        "mystral",
-        e.message,
+      Mystral::LSP::Range.new(
+        Mystral::LSP::Position.new(line, col),
+        Mystral::LSP::Position.new(line, end_col),
       )
     end
 
