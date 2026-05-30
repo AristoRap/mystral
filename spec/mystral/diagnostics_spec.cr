@@ -40,12 +40,25 @@ describe Mystral::Diagnostics do
     msgs.should eq(["syntax error"])
   end
 
-  it "publishes the union of both halves" do
+  it "a live syntax error suppresses the compile half (parse owns syntax-error location)" do
+    # The file won't parse, so the compiler's verdict on it is untrustworthy:
+    # either a duplicate of the parser's squiggle or a macro-laundered pointer.
+    # The parser's precise location stands alone.
     msgs = last_published("file:///a.cr") do |d|
-      d.set_parse("file:///a.cr", [diag("syntax")])
-      d.set_compile("file:///a.cr", [diag("semantic")])
+      d.set_compile("file:///a.cr", [diag("undefined constant")])
+      d.set_parse("file:///a.cr", [diag("syntax error")])
     end
-    msgs.sort.should eq(["semantic", "syntax"])
+    msgs.should eq(["syntax error"])
+  end
+
+  it "fixing the syntax does not re-reveal a stale compile squiggle" do
+    msgs = last_published("file:///a.cr") do |d|
+      d.set_compile("file:///a.cr", [diag("undefined constant")]) # last good compile
+      d.set_parse("file:///a.cr", [diag("syntax error")])         # user breaks syntax
+      d.set_compile("file:///a.cr", [diag("expecting end")])      # broken-disk compile, ignored
+      d.set_parse("file:///a.cr", [] of Mystral::LSP::Diagnostic) # user fixes syntax
+    end
+    msgs.should be_empty # nothing stale lingers until the fresh compile settles
   end
 
   it "clears a half independently (empty list clears only that source)" do
