@@ -189,7 +189,10 @@ module Mystral
     private def local_var_hover(uri : String, line : Int32, name : String) : LSP::MarkupContent?
       type = receiver_resolver.infer_local_var_type(name, uri, line)
       return nil unless type
-      @renderer.render_markup([HoverEntry.new(role: "local", name: name, type: type)])
+      # Qualify the written type against the cursor's lexical scope so every
+      # token links — `LSP::Item` (index FQN `App::LSP::Item`) resolves the same
+      # way a parameter/block-arg type does, not just the top-level `Array`.
+      @renderer.render_markup([HoverEntry.new(role: "local", name: name, type: @renderer.fqn_for_type_expr(type, uri, line))])
     end
 
     # A `?`/`!` accessor (`getter? x`, `getter! x`) synthesizes its reader under

@@ -51,6 +51,20 @@ describe Mystral::HoverProvider do
     md.should contain("Thing")
   end
 
+  it "links every qualified token in a local's inferred type, not just the outer one" do
+    # `box`'s type is written `Array(LSP::Item)`, but `Item` lives at FQN
+    # `App::LSP::Item`. The renderer must qualify the written name against the
+    # cursor's lexical scope (as parameter/block-arg hovers do) so the nested
+    # element links too — otherwise only the top-level `Array` is clickable.
+    Mystral::CrystalPaths.cached = [] of String # hermetic: no stdlib leak from sibling specs
+    src = "module App\n  module LSP\n    class Item\n    end\n  end\n  class Runner\n    def run\n      box = [] of LSP::Item\n      box\n    end\n  end\nend"
+    md = hover_md(src, 8, 6).not_nil! # cursor on `box` usage
+    md.should contain("(local)")
+    # The nested element resolves to its FQN and links (stdlib isn't indexed in
+    # specs, so the outer `Array` can't link here — it does in the real editor).
+    md.should contain("[App::LSP::Item](")
+  end
+
   it "renders a method reached through a typed receiver chain" do
     src = "class Result\n  def value : Result\n  end\nend\nclass App\n  @r : Result\n  def go\n    @r.value\n  end\nend"
     md = hover_md(src, 7, 8).not_nil! # cursor on `value` after `@r.`
